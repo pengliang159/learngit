@@ -1,0 +1,279 @@
+	ActivityPortalAction.java
+	@RequestMapping("/plugins/activity/fans_lottery_lst")
+	public void fansLotteryLst(HttpServletRequest req, HttpServletResponse resp) {
+		ID[] ctxUser = super.getUserCtx(req);
+		if (ctxUser == null || ctxUser[1] == null || ctxUser[0] == null) {
+			writeJSON(req, resp, 0);
+			return;
+		}
+		
+		String actId = req.getParameter("actId");
+		Object[][] obj = Application.createNoFilterQuery(
+				"select createdOn,lotteryId.lotteryDetail,status,giftLevel,giftName,luckyId from ActivityLuckyman where fansId = ? and lotteryId = ? and giftLevel > 0")
+				.setParameter(1, ctxUser[1]).setParameter(2, ID.valueOf(actId)).array();
+		if (obj.length > 0) {
+			List<?> lotXml = XmlHelper.parseText((String) obj[0][1]).getRootElement().selectNodes("gift");
+			Map<String, String> levelMap = new HashMap<String, String>();
+			for (Object oe : lotXml) {
+				Element el = (Element) oe;
+				String label = el.valueOf("@label");
+				String level = el.valueOf("@level");
+				levelMap.put(level, label);
+			}
+			for (Object[] o : obj) {
+				o[0] = CalendarUtils.getDateFormat("MM.dd HH:mm").format((Date) o[0]);
+				o[3] = levelMap.get(o[3].toString());
+			}
+		}
+		
+		writeJSON(req, resp, 1, Bean2Json.toJson(obj));
+	}
+	
+	@RequestMapping("/plugins/activity/lottery_status_upt")
+	public void lotteryStatusUpt(HttpServletRequest req, HttpServletResponse resp) {
+		ID[] ctxUser = super.getUserCtx(req);
+		String luckyId = req.getParameter("luckyId");
+		if (ctxUser == null || ctxUser[1] == null || ctxUser[0] == null || !ID.isId(luckyId)) {
+			writeJSON(req, resp, 0);
+			return;
+		}
+		
+		int status = NumberUtils.toInt(req.getParameter("status"), 2);
+		Record record = RecordHelper.forUpdate(ctxUser[0], ID.valueOf(luckyId));
+		record.setInt("status", status);
+		Application.getCommonsService().update(record);
+		writeJSON(req, resp, 1);
+	}
+	
+	
+	
+	---------------------------  RestaurantPortalAction.java
+	@RequestMapping("/plugins/restaurant/fans_order")
+	public void fansOrder(HttpServletRequest req, HttpServletResponse resp) {
+		ID[] ctxUser = getUserCtx(req);
+		if (ctxUser[0] == null || ctxUser[1] == null) {
+			writeJSON(req, resp, 0);
+			return;
+		}
+		
+		final Object[] obj = Application.createNoFilterQuery(
+				"select configInfo from RestaurantSetting where ownUser = ?")
+				.setParameter(1, ctxUser[0]).unique();
+		if (obj == null) {
+			writeJSON(req, resp, 0);
+			return;
+		}
+		
+		Element config = null;
+		if (StringUtils.isNotBlank((String) obj[0])) {
+			try {
+				config = (Element) XmlHelper.parseText((String) obj[0]).getRootElement();
+			} catch (Exception ex) {
+				LOG.error("Build config ERROR: " + ex);
+			}
+		}
+		if (config == null) {
+			config = (Element) XmlHelper.createDocument(
+					ReservationPortalGenerator.class.getResourceAsStream("restaurant-default.xml"))
+					.getRootElement();
+		}
+		List<String> reginfoList = new ArrayList<String>();
+		List<String[]> labelInfo = new ArrayList<String[]>(); 
+		reginfoList.add("orderId");
+		labelInfo.add(new String[] { "", "" });
+		reginfoList.add("createdOn");
+		labelInfo.add(new String[] { "", "" });
+		for (Object o : config.selectNodes("info")) {
+			Element el = (Element) o;
+			String show = StringUtils.defaultIfEmpty(el.valueOf("@show"), "true");
+			if (!"true".equals(show)) { continue; }
+			String field = el.valueOf("@field");
+			if (el.valueOf("@field").equals("tableId")) {
+				field = "tableId.name";
+			}
+			reginfoList.add(field);
+			labelInfo.add(new String[] { el.valueOf("@label"), el.valueOf("@type") });
+			if (field.equals("payWay")) {
+				reginfoList.add("payedNo");
+				reginfoList.add("amount");
+				labelInfo.add(new String[] {"", ""});
+				labelInfo.add(new String[] {"支付金额", ""});
+			}
+		}
+		reginfoList.add("orderStatus");
+		labelInfo.add(new String[] { "状态", "" });
+		
+		Object[][] dataObj = Application
+				.createQuery("select " + StringUtils.join(reginfoList.toArray(), ",")
+								+ " from RestaurantOrder where fansId = ? and createdOn > ? order by createdOn desc",
+						ctxUser[0]).setParameter(1, ctxUser[1]).setParameter(2, CalendarUtils.addMonth(-3)).setLimit(20).array();
+		if (dataObj != null) {
+			List<List<Object[]>> datalst = new ArrayList<List<Object[]>>();
+			for (Object[] o : dataObj) {
+				int i = 0;
+				List<Object[]> lst = new ArrayList<Object[]>();
+				for (Object data : o) {
+					String field = reginfoList.get(i);
+					String[] labels = labelInfo.get(i++);
+					// 特殊字段处理
+					if ("payedNo".equals(field)) {
+						continue;
+					} else if ("payWay".equals(field)) {
+						int way = ObjectUtils.toInt(data);
+						data = way == 0 ? "线下支付" : way == 10 ? "支付宝" : way == 11 ? "财付通" : "微信支付";
+						if (StringUtils.isNotBlank((String) o[i]) && !((String) o[i]).equals("0")) {
+							data = data + " (已支付)";
+						} else {
+							data = data + " (未支付)";
+						}
+					} else if ("status".equals(field)) {
+						int status = ObjectUtils.toInt(data);
+						String[] stu = new String[] { "新的", "已取消", "已确认", "已完成" };
+						labels[0] = status == 10 ? "已取消" : stu[status - 1];
+					} else if (labels[1].equals("date") || labels[1].equals("datetime") || data instanceof Date) {
+						DateFormat df = labels[1].equals("date") ? CalendarUtils
+								.getDateFormat("yyyy-MM-dd") : CalendarUtils
+								.getDateFormat("yyyy-MM-dd HH:mm");
+						if (data instanceof Date) {
+							data = df.format((Date) data);
+						} else if (StringUtils.isNotBlank((String) data)) {
+							data = df.format(CalendarUtils.parse((String) data));
+						}
+					}
+					lst.add(new Object[] { data, labels[0], field });
+				}
+				Object[] subObj = Application.createQuery("select foodId.name, foodId.price, foodId.promoPrice, orderCount from RestaurantOrderDetail where orderId = ?").setParameter(1, o[0]).array();
+				lst.add(subObj);
+				datalst.add(lst);
+			}
+			writeJSON(req, resp, 1, Bean2Json.toJson(datalst));
+		}
+	}
+	
+	------------------------------------  my_order.ftl
+	
+<#include "../_common/_header.ftl">
+<link href="${assetsUrl!"http://img2.qidapp.cn/wxcrm/site/mall/"}mall.css?v=0.19" type="text/css" rel="stylesheet">
+<style type="text/css">
+.cart-item-list{background-color:#fff;border-top:1px solid #e1e1e1;border-bottom:1px solid #e1e1e1;padding:0 14px;margin-bottom:10px;}
+.cart-item-list .cart-item{margin:0;}
+.cart-item-list .cart-item>a{padding:11px 0;}
+.status,.count,.oper-wrap{border-bottom:1px solid #e1e1e1;padding:8px 0;}
+.count{border-bottom:0 none;padding-bottom:18px !important;}
+.oper-wrap{border-top:1px solid #e1e1e1;padding-top:13px !important;}
+.status .pull-left{color:#999;font-size:13px;padding-top:3px;}
+.status .pull-right strong{color:#f60;font-weight:normal;font-size:12px}
+.count{text-align:right;margin-top:7px;padding-bottom:29px;font-size:15px;}
+.count p{font-size:12px;color:#888;margin:0;margin-top:2px;}
+.oper-wrap{text-align:right;border-bottom:0 none;padding-top:4px;padding-bottom:14px;}
+.oper-wrap .btn{padding:7px 14px;margin-left:6px;display:none1;min-width:60px;font-size:14px;}
+.item-show{padding:6px 0;}
+.item-show .item{color:#222;font-size:13px;margin:4px 0;margin-bottom:5px;}
+.item-show .item span{display:inline-block;width:80px;color:#999;margin-right:9px;}
+.item-show .item img{width:120px;height:auto;border:1px solid #aaa;padding:1px;background-color:#fff;display:inline-block;margin-bottom:2px;}
+</style>
+<body>
+<div class="content-wrap nav-header-fixed" style="margin-bottom:-20px;padding-top:60px">
+	<div class="nav-header">
+		<a href="./" class="left"><i class="fa fa-chevron-left"></i></a>
+		<h3>我的订单</h3>
+	</div>
+	<div class="cart-item-list hide">
+		<div class="status">
+			<div class="pull-left">下单时间</div>
+			<div class="pull-right"><strong>状态</strong></div>
+			<div class="clearfix"></div>
+		</div>
+		<div class="item-show">
+		</div>
+		<div class="oper-wrap">
+			<button class="btn btn-default">取消订单</button>
+			<button class="btn btn-danger">付款</button>
+		</div>
+	</div>
+	<div class="no-data center"></div>
+</div>
+<#include "../../portal/_common/_footer.ftl">
+<script type="text/javascript">
+$(document).ready(function(){
+	if (WXC.check_openid(true,true) == 9999) return;
+	load_order();
+});
+var load_order = function(){
+	$.getJSON(baseurl + 'plugins/restaurant/fans_order.dx?jsoncallback=?', REQ_CTX, function(data){
+		if (!!data && !!data.data && data.data.length > 0){
+			var _ul = $('#couponlist');
+			$(data.data).each(function(ind){
+				var html = '';
+				var $this = this;
+				var status, status_text, payWay;
+				var orderId, ordertime;
+				$($this).each(function(ind){
+					if (ind == 0) { orderId = this[0]; return true; } 
+					else if (ind == 1) {ordertime = this[0]; return true;}
+					else if (ind == $this.length - 1) {
+						status = this[0];
+						status_text = this[1];
+						return false;
+					} else if ('payWay' == this[2]) {
+						payWay = this[0];
+					} else if ('amount' == this[2]) {
+						this[0] = '<strong>￥ ' + this[0].toFixed(2) + '</strong>';
+					} else if ('orderWay' == this[2]) {
+						this[0] = ~~this[2] == 1 ? '堂吃' : ~~this[2] == 2 ? '外卖' : '打包';
+					} else if ($this.length == ind + 1){
+						var detail = '';
+						$(this).each(function(){
+							detail += ''
+						});
+					}
+					html += '<div class="item"><span>'+this[1]+'</span>'+(this[0]||'未填写')+'</div>';
+				});
+				var ccc = $('div.cart-item-list:eq('+ind+')').removeClass('hide');
+				if (ccc.length <= 0) { ccc = $('div.cart-item-list:eq(0)').clone().appendTo($('.content-wrap'));}
+				ccc.data('id', orderId);
+				$(ccc).find('div.oper-wrap .btn.btn-default').hide();
+				$(ccc).find('div.oper-wrap .btn.btn-danger').hide();
+				ccc.find('.status .pull-left').text('提交时间: ' + ordertime);
+				ccc.find('.status .pull-right strong').text('状态: ' + status_text);
+				ccc.find('.item-show').html(html);
+				if (~~status == 1) {
+					$(ccc).find('div.oper-wrap .btn.btn-default').show();
+					if (!!payWay && payWay.indexOf('线下支付') == -1 && payWay.indexOf('未支付') > -1) {
+						$(ccc).find('div.oper-wrap .btn.btn-danger').show();
+					}
+				}else{
+					$(ccc).find('div.oper-wrap').hide();
+				}
+				$(ccc).find('div.oper-wrap .btn.btn-default').click(function(){
+					if (~~status != 1) { return; }
+					if (!confirm('确定取消吗？')) { return; }
+					$.getJSON(baseurl + 'plugins/reservation/fans_cancel_order.dx?jsoncallback=?&oid=' + ccc.data('id'), REQ_CTX, function(data){
+						WXC.msgtips('取消成功');
+						status = 2;
+						ccc.find('.status .pull-right strong').text('状态: 已取消');
+						$(ccc).find('div.oper-wrap .btn.btn-default').hide(); 
+						$(ccc).find('div.oper-wrap .btn.btn-danger').hide(); 
+					});
+				});
+				$(ccc).find('div.oper-wrap .btn.btn-danger').click(function(){
+					WXC.msgtips('正在转向支付页...', 3000);
+					setTimeout(function(){
+						var returnUrl = location.href + '#submit';
+						if (payWay.indexOf('微信支付') > -1) location.href = '../wxpay/reservation.html?showwxpaytitle=1&order_id=' + ccc.data('id') + '&returnUrl=' + encodeURIComponent(returnUrl);
+						else location.href = baseurl + 'plugins/reservation/pay.dx?order_id=' + ccc.data('id') + '&usertoken=' + usertoken + '&openid=' + openid + '&returnUrl=' + encodeURIComponent(returnUrl);
+					}, 2000);
+				});
+			});
+			$('.no-data').hide();
+		}else{
+			$('.no-data').show();
+			$('.no-data').html('<i class="fa fa-smile-o" style="font-size:58px;margin-bottom:8px;"></i><br>你还没有订单记录。<a href="./">点击下单</a>');
+		}
+	});
+};
+</script>
+</body>
+</html>
+<!-- $Id: my_order.ftl 2380 2014-10-20 03:15:50Z zhaoff@qidapp.com $ -->
+	
