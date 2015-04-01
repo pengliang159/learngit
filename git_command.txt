@@ -19,3 +19,4 @@ HEAD指向的版本就是当前版本，因此，Git允许我们在版本的历�
 用git log --graph命令可以看到分支合并图。
 准备合并dev分支，请注意--no-ff参数，表示禁用Fast forward：
 $ git merge --no-ff -m "merge with no-ff" dev
+查看当前分支 git branch
