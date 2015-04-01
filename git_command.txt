@@ -1,0 +1,12 @@
+git 实用命令
+ssh-keygen -t rsa -C "邮件地址" 生成SSH key 添加到github上就可以正常clone 项目下来
+Git鼓励大量使用分支：
+查看分支：git branch
+创建分支：git branch <name>
+切换分支：git checkout <name>
+创建+切换分支：git checkout -b <name>
+合并某分支到当前分支：git merge <name>
+删除分支：git branch -d <name>
+关联远程库：git remote add origin git@github.com:pengliang159/learngit.git //地址
+			添加后，远程库的名字就是origin，这是Git默认的叫法，也可以改成别的，但是origin这个名字一看就知道是远程库。
+本地库推送到远程：git push -u origin master
