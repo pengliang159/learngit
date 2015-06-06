@@ -36,6 +36,6 @@ $ git merge --no-ff -m "merge with no-ff" dev
 这就是多人协作的工作模式，一旦熟悉了，就非常简单。
 
 提交到github正确步骤
-1.git add 文件名/.  . 代表所有
+1.git add 文件名  // 可以用. 代表所有
 2.git commit -m '注释'
 3.git push -u origin master
