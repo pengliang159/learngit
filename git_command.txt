@@ -39,4 +39,4 @@ $ git merge --no-ff -m "merge with no-ff" dev
 1.git add 文件名  // 可以用. 代表所有
 2.git commit -m '注释'
 3.git pull  // 更新代码
-3.git push -u origin master
+4.git push -u origin master
