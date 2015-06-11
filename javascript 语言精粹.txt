@@ -1,0 +1,102 @@
+1. 对象字面量：对象字面量提供了一种非常方便地创建对象值的表示法。一个对象字面量就是包围在一对花括号中的零或多个“名/值”对。
+2.属性名：属性名可以是包括空字符串在内的任何字符串。
+3.对象通过引用来传递。
+4.原型：每个对象都连接到一个原型对象，并且它可以从中继承属性。所有通过对象字面量创建的对象都连接到Object.prototype，它是javascript中的标配对象。
+5.object.hasOwnProperty() 如果对象拥有独有的属性，它将返回true;
+6.减少全局变量使用，只创建一个全局变量  var MYAPP = {};  MYPP.stooge = {}; 把全局性的资源都纳入到一个名称空间之下。
+7.函数调用的4种方式：方法调用模式、函数调用模式、构造器调用模式、apply调用模式
+	1）方法调用模式：当一个函数被保存为对象的一个属性时，我们称它为一个方法。  var myObject={value:0,increment:function(inc){}};
+	2）函数调用模式：当一个函数并非一个对象的属性时，那么它就是被当做一个函数来调用的：var sum = add(3, 4);    var add = function(a,b){return a+ b;}
+		myObject.double = function(){ //给myObject添加一个double方法
+			var that = this;
+			var helper = function(){
+				that.value = add();
+			};
+			
+			helper(); // 以函数的形式调用helper
+		}
+		myObject.double() // 以方法的形式调用double。
+	3)构造器调用模式：javascript是一门基于原型继承的语言。这意味着对象可以从其他对象继承属性。该语言是无类型的。如果在函数前面带上new来调用，那么背地里将会创建一个连接到该函数的prototype成员的新对象，同时this会被绑定到那个新对象上。
+		var Quo = function(string){                             Quo.prototype.get_status = function(){                       var myQuo = new Quo("confused");
+			this.status = string;                                   return this.status;                                      document.writeln(myQuo.get_status()); // 打印显示 "confused"
+		}                                                       }
+	4)Apply调用模式：apply方法让我们构建一个参数数组传递给调用函数。它也允许我们选择this的值。apply方法接收两个参数，第一个是要绑定到this的值，第二个就是一个参数数组。
+		var array = [3, 4];  var sum = add.apply(null, array); // sum = 7;
+	    var statusObject = {status: 'A-OK'}; var status = Quo.prototype.get_status.apply(statusObject); // status = 'A-OK';  通过apply 将statusObject对象绑定到 Quo.prototype.get_status上 所以其中的this就是 statusObject;
+8.函数调用时，会得到一个“免费”配送的参数，那就是arguments数组。函数可以通过此参数访问所有它被调用时传递给它的参数列表，包括没有分配给函数声明时定义的形式参数的多余参数。这使得编写一个无须指定参数个数的函数成为可能。 
+	但是arguments并不是一个真正的数组。它只是一个“类似数组(array-like)”的对象。arguments拥有一个length属性，但它没有任何数组的方法。
+9.异常  用throw 抛出一个异常  throw{name:'--', message:'---'}  可用try-catch捕获
+10.扩充类型的功能：javascript 允许给语言的基本类型扩充功能。 比如通过给 Object.create 添加方法，可以让该方法对所有的对象（如函数、数组、字符串、数字、正则表达式）都可用。   又或者
+	Function.prototype增加方法来使得该方法对所有函数可用：Function.prototype.method = function(name, func){this.prototype[name] = func; return this;}; 通过给Function.prototype增加一个method方法，我们下次给对象增加方法的时候就不必键入prototype这几个字符。 
+	给整型添加一个取整方法:
+		Number.method('integer', function(){return Math[this<0 ? 'ceil':'floor'](this);}); document.writeln((-10 / 3).integer());
+		
+11.递归：递归函数就是会直接或间接地调用自身的一种函数。
+	尾递归：如果一个函数返回自身递归调用的结果，那么调用的过程会被替换为一个循环。它可以提高速度。但是javascript并没有提供尾递归优化。所以深度递归的函数可能会因为堆栈溢出而运行失败。
+	// javascript没有对这种形式的递归做出优化。尾递归
+	var factorial = function factorial(i, a){
+		a = a || 1; if (i < 2){return a;}
+		return factorial(i-1, a*i);
+	};
+
+12.作用域：在一个函数内部任何位置定义的变量，在该函数内部任何地方都可见。所以延迟声明变量对javascript没有用，所以，最好的做法是在函数体的顶部声明函数中可能用到的所有变量。
+	var myObject = (function() {
+		var value = 0;
+		return {
+			increment: function(inc) {value = inc + 1;},                         // 通过调用一个函数的形式去初始化myObject，函数里定义了一个value变量。相当于私有属性，该变量对increment和getValue可见，不对函数外面的程序可见。
+			getValue:function(){return value;}                                   // 并没有把一个函数赋值给myObject。而是把调用该函数后返回的结果赋值给它。注意最后一行的()。
+		};
+	}());
+	
+	// 创建一个名为quo的构造函数。 它构造出带有get_status方法和status私有属性的一个对象
+	var quo = function(status){
+		return {
+			get_status : function(){
+				return status;
+			}
+		};
+	};
+	
+13.模块：模块是一个提供接口却隐藏状态与实现的函数或对象。可以使用函数和闭包来构造模块。通过使用函数产生模块，我们几乎可以完全摒弃全局变量的使用。
+	模块的一般形式是：一个定义了私有变量和函数的函数；利用闭包创建可以访问私有变量和函数的特权函数；最后返回这个特权函数，或者把他们保存到一个可访问到的地方。
+	var serial_maker = function(){
+		var prefix = '';  var seq = 0;
+		return {
+			set_prefix: function(p){
+				prefix = String(p);
+			},
+			set_seq: function(s) {
+				seq = s;
+			},
+			gensym: function(){
+				var result = prefix + seq;
+				seq += 1;
+				return result;
+			}
+		};
+	};
+	var seqer = serial_maker(); seqer.set_prefix('Q'); seqer.set_seq(1000); var unique = seqer.gensym(); document.writeln(unique); // Q1000    document.writeln(seqer.gensym()); // Q1001
+	
+14.柯里化：函数也是值，从而我们可以用有趣的方式去操作函数值。柯里化允许我们把函数与传递给它的参数相结合，产生一个新的函数。
+var add1 = add.curry(1);   document.writeln(add1(6)); // 7    add.curry() 返回的是一个函数    所以add1就是函数了。
+Function.method('curry', function(){
+	var args = arguments, that = this;
+	return function(){
+		return that.apply(null, args.concat(arguments));  // 因为arguments不是数组，所以并没有 concat方法 可以使用   Array.prototype.slice.apply(arguments) 将arguments变为数组对象
+	};
+});
+
+15.记忆：在计算机领域，记忆是主要用于加速程序计算的一种优化技术，它使得函数避免重复演算之前已被处理的输入，而返回已缓存的结果。
+   var memorizer = function(memo, formula){
+       var recur = function(n){
+	       var result = memo[n]; // 看看缓存中是否已经存在这个值，
+		   if (typeof result !== 'number') {
+		       result = formula(recur, n);
+			   memo[n] = result; // 缓存起上次计算的结果
+		   }
+		   return result;
+       };
+	   return recur;
+   };
+   
+   var fibonacci = memoizer([0, 1], function(recur, n){ return recur(n-1) + recur(n-2);});
