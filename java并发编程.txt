@@ -182,3 +182,8 @@ LIFO：last in first out 后进先出
 		
 		状态依赖性 是get的内在特性，它意味着调用者不必知晓任务的状态。任务提交和重获的结果的安全发布特性，确保了这个方法是线程安全的。包围Future.get的异常处理代码解决了两个可能出现的任务：任务遇到一个Exception，或者调用get的线程在获得结果前被提前中断。
 		CompletionService整合了Executor和BlockingQueue的功能。你可以将Callable任务提交给它去执行，然后使用类似于队列中的take和poll方法，在结果完整可用时获得这个结果，像一个打包的Future。ExecutorCompletionService是实现CompletionService接口的一个类，并将计算任务委托给一个Executor。
+		
+		多个ExecutorCompletionService可以共享单一的Executor，因此一个明智的做法是创建一个ExecutorCompletionService,它对于特定的计算服务是私有的，然后在共享一个公共的Executor。按照这种做法，CompletionService所扮演的批处理计算的句柄与Future所扮演的单一计算的句柄，很大程度是一样的。记录下提交给CompletionService的任务个数，然后计算出获得了多少个已完成的结果，这样即使你使用的是共享的Executor，你也能知晓什么时候批处理任务的所有结果已经全部获得。
+		
+		为任务设置时限
+		Future.get的限时版本符合这个条件：它在结果准备好后立即返回，如果在时限内没有准备好，就会抛出TimeoutException。如果抛出了TimeoutException你可以通过future取消任务。如果编写的任务是可取消的，就可以灵敏地中止它，以避免消耗过多的资源。
