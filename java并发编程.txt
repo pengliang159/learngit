@@ -1,4 +1,6 @@
 java并发编程实践
+FIFO：first in first out 先进先出
+LIFO：last in first out 后进先出
 原子性：同一个时刻只有一个线程对它操作。
 1.无论何时，只要有多于一个的线程访问给定的状态变量，而且其中某个线程会写入该变量，此时必须使用同步来协调线程对变量的访问。java中首要的同步机制是synchronized关键字，它提供了独占锁。除此之外，术语“同步”还包括volatile变量，显示锁和原子	变量的使用
 	在没有正确同步的情况下，如果多个线程访问了同一个变量，你的程序就存在隐患。有3种方法修复它：
@@ -143,3 +145,21 @@ java并发编程实践
 		5).如果系统过载，需要放弃一个任务，应该挑选哪一个(which)任务？另外，如何(how)通知应用程序知道这一切
 		6).在一个任务的执行前与结束后，应该做什么(what)处理？
 	执行策略是资源管理工具。最佳策略取决于可用的计算资源和你对服务质量源耗尽而失败，大量任务也不会在争夺稀缺资源时出现性能问题。
+	
+	无论何时当你看到这种形式的代码：
+	new Thread(runnable).start() 并且你可能最终获得一个更加灵活的执行策略时，请认真考虑使用Executor代替Thread
+	Executors.newFixedThreadPool(4);
+	
+4).线程池：线程池管理一个工作者线程的同构池(homogeneous pool)。线程池是与工作队列(work queue)紧密绑定的。所谓工作队列，其作用是持有所有等待执行的任务。工作者线程的生活从此轻松起来：它从工作队列中获取下一个任务，执行它，然后回来继续等待另一个线程。
+	通过Executors中的某个静态工厂方法来创建一个线程：
+		1).newFixedThreadPool 创建一个定长的线程池，每当提交一个任务就创建一个线程，直到达到池的最大长度，这时线程池会保持长度不再变化(如果一个线程由于非预期的Exception而结束，线程池会补充一个新的线程）。
+		2).newCachedThreadPool创建一个可缓存的线程池，如果当前线程池的长度超过了处理的需要时，它可以灵活地回收空闲的线程，当需求增加时，它可以灵活地添加新的线程，而并不会对池的长度作任何限制。
+		3).newBingleThreadExecutor创建一个单线程化的executor，它只创建唯一的工作者线程来执行任务，如果这个线程异常结束，会有另一个取代它。executor会保证任务依照任务队列所规定的顺序（FIFO，LIFO，优先级）执行。
+		4).newScheduledThreadPool创建一个定长的线程池，而且支持定时的以及周期性的任务执行，类似于Timer.
+		
+		newFixedThreadPool和newCachedThreadPool两个工厂方法返回通用目的的ThreadPoolExecutor实例。直接使用ThreadPoolExecutor,也能创建更满足某些专有领域的executor
+		
+5).Executor的生命周期
+	ExecutorService暗示了生命周期有3中状态：运行(running)、关闭(shutting down)和终止(terminated)。ExecutorService最初创建后的初始状态是运行状态。shutdown方法会启动一个平缓的关闭过程：停止接受新的任务，同时等待已经提交的任务完成-----包括尚未开始执行的任务。shutdownNow方法会启动一个强制的关闭过程：尝试取消所有运行中的任务和排在队列中尚未开始的任务。
+	在关闭后提交到ExecutorService中的任务，会被拒绝执行处理器(rejected execution handler)处理。拒绝执行处理器(拒绝执行处理器是ExecutorService的一种实现，ThreadPoolExecutor提供的，ExecutorService接口中的方法并不提供拒绝执行处理器。)可能只是简单地放弃任务，也可能会引起execute抛出一个未检查的RejectedExecutionException。一旦所有的任务全部完成后，ExecutorService会转入终止状态。你可以调用awaitTermination等待ExecutorService到达终止状态，也可以轮询检查isTerminated判断ExecutorService是否已经终止。通常shutdown会紧随awaitTermination之后，这样可以产生同步地关闭ExecutorService的效果。
+		
