@@ -283,5 +283,79 @@ SqlSessionFactory 的实例可以通过SqlSessionFactoryBuilder获得。
 							void setProperties(Properties props);
 							DataSource getDataSource();
 						}
-						org.apache.ibatis.datasource.unpooled.UnpooledDataSourceFactory可被用作父类来构建新的数据源适配器，比如下面这段插入C3P0数据源所必需的代码：
+						org.apache.ibatis.datasource.unpooled.UnpooledDataSourceFactory可被用作父类来构建新的数据源适配器，比如下面这段插入C3P0数据源所必需的代码
+							import org.apache.ibatis.datasource.unpooled.UnpooledDataSourceFactory;
+							import com.mchange.v2.c3p0.ComboPooledDataSource;
+									
+							public class C3P0DataSourceFactory extends UnpooledDataSourceFactory {
+
+							  public C3P0DataSourceFactory() {
+								this.dataSource = new ComboPooledDataSource();
+							  }
+							}
+						为了让其工作，为每个需要MyBatis调用的setter方法中增加一个属性。下面是一个可以连接至PostgreSQL数据库的例子：
+							<dataSource type="org.myproject.C3P0DataSourceFactory">
+								<property name="driver" value="org.postgresql.Driver"/>
+								<property name="url" value="jdbc:postgresql:mydb"/>
+								<property name="username" value="postgres"/>
+								<property name="password" value="root"/>
+							</dataSource>
 							
+					databaseldProvider：MyBatis是基于映射语句的databaseId属性来支持不同数据库厂商执行不同的语句。MyBatis会加载不带databaseId属性和带有匹配当前数据库databaseId属性的所有语句。如果同时找到带有databaseId和不带databaseId的相同语句，则后者会被抛弃。为支持多厂商特性只要像下面这样在mybatis-config.xml文件中加入databaseIdProvider即可：
+					<databaseIdProvider type="DB_VENDOR" />
+					这里的DB_VENDOR会通过DatabaseMetaData#getDatabaseProductName()返回的字符串进行设置。由于通常情况下这个字符串都非常长而且相同产品的不同版本会返回不同的值，所以最好通过设置属性别名来使其变短，如下：
+					<databaseIdProvider type="DB_VENDOR">
+						<property name="SQL Server" value="sqlserver"/>
+						<property name="DB2" value="db2"/>
+						<property name="Oracle" value="oracle"/>
+					</databaseIdProvider>
+					在有properties时，DB_VENDOR databaseIdProvider的将被设置为第一个能匹配数据库产品名称的属性键对应的值，如果没有匹配的属性将会设置为“null”。在这个例子中，如果getDatabaseProductName返回“Oracle(DataDirect)”，databaseId将被设置为"oracle"。
+					你可以通过实现接口org.apache.ibatis.mapping.DatabaseIdProvider并在mybatis-config.xml中注册来构建自己的DatabaseIdProvider：
+					public interface DatabaseIdProvider{
+						void setProperties(Properties p);
+						String getDatabaseId(DataSource dataSource) throws SQLException;
+					}
+					
+			映射器(mappers)：可以使用相对于类路径的资源引用，或完全限定资源定位符（包括file:///的URL），或类名和包名等。如：
+				<mappers>
+					<!-- Using classpath relative resources 相对类路径 --> 
+					<mapper resource="org/mybatis/builder/AuthorMapper.xml"/>
+					<!-- Using url fully qualified paths 完全限定资源 -->
+					<mapper url="file:///var/mappers/AuthorMapper.xml"/>
+					<!-- Using mapper interface classes 类名和包名 -->
+					<mapper class="org.mybatis.builder.AuthorMapper"/>
+					<!-- Register all interfaces in a package as mappers 告诉在哪个包下面找，这种应该是要配置注解的 -->
+					<package name="org.mybatis.builder"/>
+				</mappers>
+
+三、XML映射文件：
+	SQL映射文件有很少的几个顶级元素(按照它们应该被定义的顺序)：
+		1).cache：给定命名空间的缓存配置。
+		2).cache-ref：其他命名空间缓存配置的引用。
+		3).resultMap：是最复杂也是最强大的的元素，用来描述如何从数据库结果集中来加载对象。
+		4).-- parameterMap - 已废弃！老式风格的参数映射。内联参数是首选，这个元素可能在将来被移除
+		5).sql：可被其他语句引用的可重用语句块。
+		6).insert：映射插入语句
+		7).update：映射更新语句
+		8).delete：映射删除语句
+		9).select：映射查询语句
+		
+	select：
+		<select id="selectPerson" parameterType="int" resultType="hashmap">
+			SELECT * FROM PERSON WHERE ID = #{id}
+		</select>
+		这个语句被称作selectPerson，接受一个int（或Integer）类型的参数，并返回一个HashMap类型的对象，其中的键是列名，值便是结果行中的对应值。
+		select可配置属性：
+			id            在命名空间中唯一的标识符，可以被用来引用这条语句
+			parameterType 将会传入这条语句的参数类的完全限定名或别名
+			resultType    从查询语句中返回期望类型的类的完全限定名或别名。若是集合，则应该是集合包含的类型。使用resultType或resultMap，但两者不能同时使用。
+			resultMap     外部resultMap的命名引用。结果集的映射是Mybatis的最强大的的特性。
+			flushCache    若为true，本条语句被调用则会导致本地缓存和二级缓存都会被清空，默认值：false
+			useCache      若为true，本条语句的结果会被二级缓存，默认值：对select元素为true
+			timeout       驱动程序等待数据库返回请求结果的秒数。默认值为unset(依赖驱动)
+			fetchSize     尝试影响驱动程序每次批量返回的结果行数和这个设置值相等。默认值为unset(依赖驱动)。
+			statementType STATEMENT，PREPARED或CALLABLE的一个。这会让MyBatis分别使用Statment，PreparedStatement，CallableStatement，默认值：PREPARED。
+			resultSetType FORWORD_ONLY，SCROLL_SENSITIVE或SCROLL_INSENSITIVE中的一个，默认值为unset(依赖驱动)
+			databaseId    如果配置了databaseIdProvider，MyBatis会加载所有的不带databaseId或匹配当前databaseId语句；如果带或者不带的语句都有，则不带的会被忽略
+			resultOrdered 这个设置仅针对嵌套结果select语句适用：若为true,就是假设包含了嵌套结果或分组，这样的话当返回一个主结果行的时候，就不会有对前面结果集的引用的情况。这就使得在获取嵌套的结果集的时候不至于导致内存不够用
+			resultSets    仅对多结果集的情况适用，将列出语句执行后返回的结果集并给每个结果集一个名称，名称是逗号分隔的
