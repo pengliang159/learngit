@@ -35,8 +35,108 @@ $ git merge --no-ff -m "merge with no-ff" dev
 如果git pull提示“no tracking information”，则说明本地分支和远程分支的链接关系没有创建，用命令git branch --set-upstream branch-name origin/branch-name。
 这就是多人协作的工作模式，一旦熟悉了，就非常简单。
 
+查看git配置
+git config --list
+git变更项目地址
+git remote set-url origin git@192.168.1.130:git/test.git
+git remote -v
+
+查看某个文件的修改历史
+git log -pretty=oneline 文件名  #显示修改历史
+git show 356f5..   #查看更改
+
+git push时报错 warning: push.default is unset;
+意味着执行git push 没有指定分支时 修改git push行为
+git config --global push.default matching
+
+
+git submodule 的使用拉子项目代码
+开发过程中，经常会有一些通用的部分希望抽取出来做成一个公共库提供给别的工程来使用，而公共代码库的版本管理是个麻烦的事情，而使用git submodule 可以解决这个问题。
+为当前工程添加submodule，命令如下
+git submodule add 仓库地址 路径
+其中 仓库地址是指子模块仓库地址，路径指将子模块放置在当前工程下的路径
+注意：路径不能以/ 结尾(会造成修改不生效)、不能是现有工程已有的目录(不能顺利clone)
+删除submodule 要在.gitmodules 文件中删除相应配置信息。然后执行git rm -cached 命令将子模块所在的文件从git中删除
+
+下载的工程带有submodule
+当使用git clone下来的工程中带有submodule时，初始的时候，submodule的内容并不会自动下载下来的，此时，只需执行如下命令：
+git submodule update --init --recursive
+
+git add文件取消
+如果发现错误的将不想提交的文件add进入index之后，想回退取消，可以使用命令：git reset HEAD <file> ,同时git add完毕之后，git也会做相应的提示。
+
+git 删除文件
+删除文件跟踪并且删除文件系统中的file1  git rm file1
+提交刚才的删除动作，之后git不再管理该文件 git commit
+
+删除文件跟踪但不删除文件系统中的文件file1   git rm --cache file1
+提交刚才的删除动作，之后git不再管理该文件。但是文件系统中还是有file1。 git commit
+
+版本回退
+版本回退用于线上系统出现问题后恢复旧版本的操作。
+回退的版本  git reset --hard 235234..
+回退的是所有文件，如果后悔回退可以git pull 就可以了
+
+分支管理
+创建并切换分支：git checkout -b new_branch
+查看当前分支 git branch
+切换到master分支git checkout master
+合并分支到当前分支git merge new_branch  合并分支的操作是从new_branch合并到master分支，当前环境在master分支
+删除分支git branch -d new_branch
+
+git冲突文件编辑
+a123
+<<<<<<< HEAD
+b789
+======
+b45678910
+>>>>>>>
+冲突标记<<<<<<< 与======之间的内容是我的修改，======与>>>>>>>之间的内容是别人的修改
+
+理解github的pull request
+有一个仓库，叫Repo A。你如果要往里贡献代码，首先要Fork这个Repo，于是在你的Github账号下有了一个Repo A2，然后你在这个A2下工作，commit,push等。然后你希望原始仓库Repo A合并你的工作，你可以在Github上发起一个Pull Request，意思是请求Repo A的所有者从你的A2合并分支。
+
+一些错误处理
+"pathspec branch" did not match any file(s) known go git." 错误。
+git checkout master
+git pull
+git checkout new_branch
+
+使用git提交比较大的文件的时候可能会出现这个错误
+error: RPC failed; result=22, HTTP code = 411
+  fatal: The remote end hung up unexpetedly
+  fatal: the remote end hung up unexpectedly
+  Everything up-to-date
+这样的话首先改一下git的传输字节限制
+git config http.postBuffer 524288000
+
+然后这时候在传输或许会出现另一个错误
+error: RPC failed; result=22, HTTP code = 413
+ fatal: The remote end hung up unexpectedly
+ fatal: The remote end hung up unexpectedly
+ Everything up-to-date
+错误看上去相似，一个是411 ，一个 413
+下面这个错误添加以下密钥就行了。首先key-keygen生成密钥
+然后把生成的密钥复制到git中自己的账号下的相应位置
+
 提交到github正确步骤
 1.git add 文件名  // 可以用. 代表所有
 2.git commit -m '注释'
 3.git pull  // 更新代码
 4.git push -u origin master
+
+
+git 
+服务器搭建：
+1.CentOs/Red Hat 使用命令 yum install git 安装git  其他的试试 apt-get install git
+2.adduser git  然后使用passwd git 为git用户设置密码
+3.在本地使用ssh-keygen -t rsa -C "youremail@example.com" 创建SSH KEY
+4.将创建好的key从 .ssh/id_rsa.pub中的全部内容复制到服务器中的 /home/git/.ssh/authorized_keys 中，一行一个。
+5.修改远程主机的/etc/ssh/sshd_config这个文件，检查下面几行前面"#"注释是否取掉。
+　　RSAAuthentication yes
+　　PubkeyAuthentication yes
+　　AuthorizedKeysFile .ssh/authorized_keys
+6.初始化Git仓库  sudo git init --bare Project.git  使用 --bare参数是创建一个裸仓库，服务器只会记录历史修改记录。所以如果是服务器仓库的话就带上  --bare参数
+7.将文件所有权给git用户   sudo chown -R git:git Project.git
+8.本地使用git clone git@service:/路径
+或者 git remote add origin git@服务器路径  上传
