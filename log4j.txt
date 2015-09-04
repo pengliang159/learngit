@@ -1,0 +1,161 @@
+1.应用程序使用Log4j2 API从LogManager根据指定名字获取Logger请求，LogManager将会寻找合适的LoggerContext并且获得Logger对象。
+如果Logger被创建，它将与以下关联：
+a 与Logger同名的LoggerConfig, b. 父包的名字
+或者
+c.根 LoggerConfig， LoggerConfig对象是从在configuration中声明的Logger中获取的。
+LoggerConfig与传送LogEvents的Appender关联。
+
+LoggerContext
+LoggerContext 是日志系统的锚点，取决于不同的环境，LoggerContext可以在一个应用里存在多个。
+
+Configuration
+每个LoggerContext都有一个Configuration.Configuration包含所有的Appenders,context-wide Filter,LoggerConfigs 和包含引用的StrSubsitutor. 在重新配置期间会有两个Configuration 对象，一旦所有的Loggers完成了指向了新的Configuration,旧的Configuration将会停止并且废弃。
+
+Logger
+Logger 是调用 LogManager.getLogger创建的.Logger本身没有直接的执行动作。它只有简单的名字并且和LoggerConfig关联。它继承自AbstractLogger并且实现了必须的方法。当配置被修改后，Logger可能与新的LoggerConfig相关联
+
+用相同的名字调用LogManager.getLogger方法将返回完全相同的Logger对象
+Logger x = LogManager.getLogger("wombat"); Logger y = LogManager.getLogger("wombat"); x和y是完全相同的Logger对象
+
+log4j 的环境配置通常在应用初始化时完成。在class后声明loggers目前看来是最好的方式。
+LogManager.getLogger()会自动使用全类名作为Logger的名称
+
+LoggerConfig 
+LoggerConfig是Loggers在logging configuration声明时创建的。LoggerConfig包含的Filter会在LogEvent到达Appenders前校验。它包含一系列的Appenders将会处理这些事件。
+LoggerConfig将会分配一下日志等级。内置的日志等级有 TRACE,DEBUG,INFO,WARN,ERROR,FATAL。等级由低到高。log4j2也支持自定义日志等级。另外的机制是使用Markers 获取更多的粒度。
+不同于 Log4j和Logback的相同等级继承 理念。Log4j2的  Logger和LoggerConfig是实现方式不同的两个不同对象，每个Logger和合适的能依次引用父级的LoggerConfig关联，来完成相同的效果。
+
+Filter
+过滤器可以应用在control传递给LoggerConfig之前，control传递给LoggerConfig之后但是调用任何Appenders之前，control传递给LoggerConfig之后但是调用指定的Appender之前，并且在每个Appender之上。与防火墙过滤的方式相同，每个Filter从Accept、Deny、Neutral三个结果中返回一个。Accept表示不会在调用其他Filter并且通过。Deny表示立即拒绝并且返回给请求者。Neutral表示传递给其他过滤器，如果没有其他过滤器将会通过。
+即使一个事件可能会被Filter通过但依然不会logged.这种可能是发生在事件被pre-LoggerConfig 过滤器通过但是被LoggerConfig或者Appenders拒绝。
+
+Appender
+基于他们的logger有选择的启用或禁用日志请求只是一部分。Log4j允许日志请求打印到多个终端。在log4j中，一个输出终端就叫做一个Appender.现在，Appender存在于 console,文件、remote socket server, Apache Flume, JMS, remote UNIX Syslog daemons 和各种数据库接口。
+可以在当前的Configuration中调用addLoggerAppender方法去添加一个Appender，如果LoggerConfig按名称匹配的Logger不存在，将会创建一个，Appender将会附属于它并且会通知所有的Loggers去更新他们引用的LoggerConfig.
+每个启用记录请求的logger将会转发给所有的Logger的LoggerConfig中的所有的Appenders包括Appender的LoggerConfig的父类。也就是说，Appenders会从父级中的LoggerConfig继承。比如，如果一个root logger上有一个console appender，那么所有启用日志请求将至少会打印在console上。
+在配置文件中的Logger声明上加上  additivity="false" 可以不让Appender上继承父类的默认行为
+appender可加性规则总结：
+一个输出日志语句将会打印在与Logger的LoggerConfig和他的父级们相关的所有Appender上。但是一个有了  additivity="false" 属性的Logger将不会附加上父类中的appenders。Logger的 additivity属性默认值是true
+
+Layout
+自定义输出格式。Layout负责格式化输出的内容，appendder负责发送格式化后的内容到终端。
+PatternLayout,标准log4j的一部分， 和C语言的printf方法相似，让用户根据指定的转换模式输出。
+
+
+占位参数：
+Logger.debug("Logging in user {} with birthday {}", user.getName(), user.getBirthdayCalendar());
+同样可以使用java的格式化，如，注意这个需要使用LogManager.getFormatterLogger才行。
+Logger.debug("Logging in user %s with birthday %s", user.getName(), user.getBirthdayCalendar());
+
+当然两者也可以混用。不需要使用LogManager.getFormatterLogger。使用
+logger.printf(level.INFO, "Logging %s...")，但是有个缺点是必须使用与之对应的类型，否则会抛异常。
+
+日志名称
+大多数时候都是使用当前类的路径，所以 LogManager.getLogger() 就可以获取到当前类的路径。
+
+流跟踪
+Logger类提供了跟踪程序执行路径的非常有用的方法。这些方法生成日志事件，可以分开过滤其他调试日志记录。
+鼓励不拘束的使用这些方法可以
+1.不需要调试会话来诊断问题。
+2.使不用调试来诊断问题成为可能。
+3.帮助新开发者学习程序
+
+最常用的两个方法是 entry() 和 exit()
+entry()是放在方法最前面的，除了那些简单的方法如getter或者setter。
+exit()是放在方法最后面的或者有return的之前。void方法一般使用exit(),返回一个对象的时候一般使用 exit(Object obj).
+throwing方法被用于程序抛一个不太可能被处理的异常，比如说RuntimeException.
+catching用于程序捕获一个方法
+
+Markers
+日志框架的一个主要目的是为了生成的日志和诊断信息只是他需要的，并且允许过滤那些信息以至于不会让有用的信息被系统淹没或者个人需要它。
+
+Event Logging
+EventLogger类提供了一个发生在程序中的记录事件的简单机制。
+推荐在一个普通的web应用中使用EventLogger的方法是用ThreadContext Map填充关联到请求的整个生命周期数据，比如 user's id, user's ip addres, the product name 等等。这能很轻松的在一个servlet filter中完成，ThreadContext map也能在请求结束后在servlet filter中被清除。
+
+Messages
+虽然Log4j 提供了接收Strings和Objects的方法，所有这些最终还是被Message Objects所捕获然后和log event相关联.应用自由的构建他们自己的消息并且传送给Logger.
+虽然它看起来更加昂贵比直接传送message format和参数到event，测试表明和现代JVM创建和销毁事件的花费相比，它微不足道，尤其是在Message中封装的复杂的任务而不是程序中。此外，当使用接收Strings和参数的方法，底层的Message Object将仅仅被会创建如果配置了任何全局filter或者允许Logger's log event去处理
+应用有一个Map对象包含 {"Name" = "John Doe", "Address" = "123 Main St.", "Phone" = "(999) 555-1212"}和一个用户对象有一个getId方法返回"jdoe".开发者想增加一条信息returns""User John Doe has logged in using id jdoe"，可能这样去实现：
+logger.info("User {} has logged in using id {}", map.get("Name"), user.getId());
+虽然这本身没什么错，但是作为一个复杂的对象并且期望输出更多这个方式可能变的很难去使用。一种替代方式，Message可以这样：logger.info(new LoggedInMessage(map, user));
+public class LoggedInMessage implements Message 去实现 getFormattedMessage 方法。
+
+FormattedMessage
+消息模式传送给FormattedMessage，首先会检查是否存在一个合法的java.text.MessageFormat模式，如果有，将会使用MessageFormatMessage去格式化它，没有将检查是否包含任何可以用String.format()的合法格式符，有的话，将会使用StringFormattedMessage，否则会使用PrameterizedMessage去格式化。
+
+LocalizedMessage
+LocalizedMessage首先提供兼容Log4j1.x。一般的，最好的本地化的方法是让客户端UI在客户端本地呈现事件，
+LocalizedMessage结合了ResourceBundle并且允许消息模式参数成为消息模式包的关键。如果没有bundle被指定，LocalizedMessage将会试图通过Logger的名称加载bundle去记录事件。使用FormattedMessage格式化从bundle中找到的message
+
+LoggerNameAwareMessage
+LoggerNameAwareMessage是一个有setLoggerName方法的接口，这个方法会在事件构建的时候被调用，所以the Message有Logger的名称去记录事件当消息正在被格式化。
+
+MapMessage
+一个MapMessage包含map的String key和values。MapMessage实现了FormattedMessage并且接收XML的格式说明符，这种情况下Map将被格式为XML，另外，Map将会被格式化成 "key1=value1 key2=value2...".
+
+MessageFormatMessage
+使用conversion format(http://docs.oracle.com/javase/6/docs/api/java/text/MessageFormat.html)处理消息。虽然它比ParameterizedMessage更加灵活，但是也差不多慢两倍。
+
+MultiformatMessage
+将有一个getFormats方法和一个接收格式化的String类型的数组的getFormattedMessage方法。getFormats()方法也许被Layout调用去提供Message支持的格式化参数。Layout也许接着调用getFormattedMessage方法带着一个或多个formats。如果Message不识别format name,它将会使用默认的格式简单的格式数据。
+
+ObjectMessage 调用它的toString方法去格式化一个对象
+
+ParameterizedMessage 处理在格式化中包含{}的可替换符和可替换参数
+
+SimpleMessage 包含一个不需要格式化的String
+
+StringFormattedMessage 使用符合java.lang.String.format()的 conversion format去处理消息，虽然比ParamterizedMessage更加灵活，但同时比ParameterizedMessage慢5到10倍。
+
+StructuredDataMessage 作为一个符合RFC 5424有结构的数据元素允许应用添加项到Map和设置id到message去格式化。
+
+ThreadDumpMessage 一个ThreadDumpMessage，如果记录，将会为所有的线程生成stack traces.在java6以上stack traces将包含他们held的任何锁
+
+TimestampMessage 在事件构建时将提供一个getTimestamp方法去调用，将使用当前时间作为消息的时间戳
+
+配置loggers
+每一个配置都必须有一个root logger，如果没有配置，就会有一个等级为Error，输出到Console的logger被使用。
+root logger 和其他的logger的主要区别是：
+1.root logger 没有名称属性
+2.root logger因为没有父级所以不支持additivity属性
+
+配置Appenders
+一个Appender要么使用指定的appender插件名称，要么是一个appender节点并且属性里包含appender插件的名称。在appenders中每个appender必须包含一个有值的名称属性并且是唯一的。这个名字将会被logger引用。
+
+配置Filters
+filter节点可以出现在4个地方
+1.与properties、loggers、appenders同级的节点.这些filter能在事件传送给LoggerConfig接收或者拒绝事件。
+2.在logger节点里，用于给指定的logger过滤
+3.在appender节点里，能阻止事件被appender处理
+4.在一个appender引用节点里，用于决定使用哪一个appender
+
+XInclude
+XML配置文件可以使用XInclude引入其他的配置文件。
+<configuration xmlns:xi="http:www.x3.org/2001/XInclude">
+<xi:include href="log4j2-appenders.xml"/>
+</configuration>
+
+Status Message
+Troubleshooting tip for the impatient:
+在配置被发现之前，状态日志等级可以通过系统属性org.apache.logging.log4j.simplelog.StatusLogger.level进行控制
+在配置被发现后，状态日志等级可以通过配置文件的status进行控制。如:<Configuration status="trace">
+
+在应用中它是能够诊断问题，它是频繁的需要能够在日志配置或者配置组件中诊断问题的。日志还没有配置的时候，在初始化期间"normal"日志将不能被使用.另外，appenders中的normal logging能创建无限循环的log4j检测到的并且会导致循环事件被忽略。为了满足这种需求，Log4j API包含了一个StatusLogger.组件声明StatusLogger的示例：protected final static Logger logger = StatusLogger.getLogger();
+自从StatusLogger实现了Log4j2 API的Logger接口，所有normal Logger方法都可能被使用。
+
+当配置Log4j的时候它可能需要去查看生成的状态事件.这个可以通过添加状态属性或者通过设置"Log4jDefultStatusLevel"系统属性提供的默认值来完成.status属性合法的值是"trace"，"debug","info","warn","error"和"fatal"。
+
+如果状态属性设置为error，将仅仅只会有error消息写到console。
+
+在Web应用中使用Log4j
+配置：可以在web.xml中通过log4jConfiguration context parameter指定配置文件。
+1.如果指定了位置将会作为一个servlet context资源查找。比如log4jConfiguration包含了logging.xml将会在web应用的根目录里查找有这个名字的文件。
+2.如果没有指定位置，将会在web-inf目录中查找以log4j2开始的文件名，如果发现了多个文件，如果发现了log4j-[name]的文件[name]是web应用的名字，将会使用这个文件，否则会使用第一个发现的文件。
+3.正常的查找顺序是使用类路径并且使用文件URLs去查找配置文件
+
+简单地说，Log4j2 能在Servlet3.0中自动的在应用部署时启动和在关闭部署时关闭。因为Servlet3.0中的ServeltContainerInitializer API能使相关的Filter和ServletContextListener类能动态的在web应用在启动时注册。
+重要提示：因为性能的原因，容器通常忽略某些jar不包含TLDs或ServletContainerInitializers和不扫描他们web-fragments和初始化。小于7.0.43的tomcat7忽略所有叫log4j*.jar。但是已经在7.0.43、tomcat8 和更高的版本中修复。
+
+The Long Story
+在程序中，Log4j2 WEB JAR文件是一个
