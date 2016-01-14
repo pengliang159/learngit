@@ -199,7 +199,7 @@ ContextMapLookup允许程序在Log4j ThreadContext Map中存储数据并且在Lo
 
 Date Lookup
 DateLookup是有点不寻常的因为它不使用key去定位一个item。而是，这个key可以被使用去指定一个合法的SimpleDateFormat日期格式字符串。
-
+f
 EnvironmentLookup
 EnvironmentLookup允许系统配置环境变量，可以是想 /etc/profile的全局文件或者是在程序的启动脚本中。并且取回在logging configuration中取回那些值。
 
@@ -212,3 +212,13 @@ hw 硬件信息，比如：processors:4, architecture:amd64-64,instruction sets:
 
 Jndi Lookup
 JndiLookup 能通过JNDI取到数据，
+
+
+Appenders
+Appenders负责运输LogEvents到目的地。每一个Appender必须实现Appender接口。大多数Appenders将继承添加了Lifecycle和支持Filterable的AbstractAppender。Lifecycle允许组件在配置完成后初始化和做清理在关闭期间。Filterable允许组件在事件处理期间过滤。
+
+Appenders经常仅仅负责写event data到目标地方。在大多数案例他们格式化event到layout。一些Appenders 被其他Appender包裹，所以他们能修改LogEvent,处理一个失败的在一个Appender，....
+
+AsyncAppender
+AsyncAppender允许关联到其他的Appender并且能在一个分离的线程中写LogEvents.记住当写这些异常到那些Appenders将会从应用中隐藏。The AsyncAppender应该被配置在他引用的appenders之后允许它能正确的关闭。
+
